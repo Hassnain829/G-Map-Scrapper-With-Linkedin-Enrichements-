@@ -1,0 +1,888 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Detriots Lead Pipeline</title>
+<style>
+  :root {
+    --bg: #f3f5fa; --card: #ffffff; --ink: #172033; --muted: #5f6b85; --line: #e1e6f0;
+    --soft: #f7f9fd; --brand: #3559e0; --brand-ink: #ffffff; --brand-soft: #e9eeff;
+    --ok: #17803f; --ok-soft: #e3f6ea; --warn: #a66a00; --warn-soft: #fff4d9;
+    --bad: #c62828; --bad-soft: #fde8e8; --console: #0e1322; --console-ink: #d3daee;
+    --shadow: 0 1px 2px rgba(20,30,60,.05), 0 6px 20px rgba(20,30,60,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f121b; --card: #171b28; --ink: #e9ecf6; --muted: #99a3bf; --line: #2a3047;
+      --soft: #1c2130; --brand: #7b97ff; --brand-ink: #0c1020; --brand-soft: #232b4a;
+      --ok: #52d08e; --ok-soft: #173427; --warn: #f0bb55; --warn-soft: #3a2f14;
+      --bad: #ff8585; --bad-soft: #3d1d1f; --console: #090c15; --console-ink: #d3daee;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { font-size: 16px; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 1rem/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  [hidden] { display: none !important; }
+
+  /* header */
+  .top { background: var(--card); border-bottom: 1px solid var(--line); }
+  .top-in { max-width: 1280px; margin: 0 auto; padding: 16px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .logo { width: 38px; height: 38px; border-radius: 10px; background: var(--brand); color: var(--brand-ink);
+          display: grid; place-items: center; font-weight: 800; letter-spacing: -.5px; }
+  .top h1 { margin: 0; font-size: 1.15rem; line-height: 1.2; }
+  .top .sub { color: var(--muted); font-size: .85rem; }
+  .grow { flex: 1; }
+  .status { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px;
+            font-weight: 600; font-size: .9rem; background: var(--soft); border: 1px solid var(--line); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .status.running { color: var(--brand); border-color: var(--brand); }
+  .status.running .dot { background: var(--brand); animation: pulse 1.2s infinite; }
+  .status.completed { color: var(--ok); } .status.completed .dot { background: var(--ok); }
+  .status.failed, .status.interrupted { color: var(--bad); } .status.failed .dot, .status.interrupted .dot { background: var(--bad); }
+  .status.stopped { color: var(--warn); } .status.stopped .dot { background: var(--warn); }
+  @keyframes pulse { 50% { opacity: .3; } }
+
+  main { max-width: 1280px; margin: 0 auto; padding: 22px 24px 70px; display: grid; gap: 20px; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: 20px; align-items: start; }
+  @media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } }
+  .stack { display: grid; gap: 16px; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; box-shadow: var(--shadow); }
+  .sticky { position: sticky; top: 16px; }
+  @media (max-width: 1000px) { .sticky { position: static; } }
+  .locked { opacity: .55; pointer-events: none; user-select: none; }
+
+  /* steps */
+  .steps { counter-reset: step; }
+  .step-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .step:not([hidden]) .num::before { counter-increment: step; content: counter(step); }
+  .num { width: 30px; height: 30px; border-radius: 50%; background: var(--brand); color: var(--brand-ink);
+         display: grid; place-items: center; font-weight: 700; flex: none; }
+  .step-head h2 { margin: 0; font-size: 1.1rem; }
+  .step-head p { margin: 0; color: var(--muted); font-size: .85rem; }
+
+  /* mode cards */
+  .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 620px) { .modes { grid-template-columns: 1fr; } }
+  .mode { position: relative; display: block; padding: 14px 14px 12px; border: 2px solid var(--line); border-radius: 12px; cursor: pointer; background: var(--card); }
+  .mode:hover { border-color: color-mix(in srgb, var(--brand) 45%, var(--line)); }
+  .mode input { position: absolute; opacity: 0; pointer-events: none; }
+  .mode:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
+  .mode:has(input:focus-visible) { outline: 3px solid color-mix(in srgb, var(--brand) 40%, transparent); }
+  .mode b { display: block; margin-bottom: 2px; }
+  .mode span { color: var(--muted); font-size: .85rem; display: block; }
+  .mode .tick { position: absolute; top: 10px; right: 12px; width: 20px; height: 20px; border-radius: 50%;
+                border: 2px solid var(--line); display: grid; place-items: center; font-size: 12px; color: transparent; }
+  .mode:has(input:checked) .tick { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+
+  /* term queue */
+  .qtools { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; font-size: .85rem; color: var(--muted); flex-wrap: wrap; }
+  .link { background: none; border: none; padding: 0; color: var(--brand); font-size: .85rem; text-decoration: underline; }
+  .queue { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
+  .qitem { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px;
+           background: var(--card); transition: box-shadow .1s, opacity .1s; }
+  .qitem.off { background: var(--soft); }
+  .qitem.off .qname { color: var(--muted); }
+  .qitem.dragging { opacity: .35; }
+  .qitem.drop-before { box-shadow: 0 -3px 0 0 var(--brand); }
+  .qitem.drop-after { box-shadow: 0 3px 0 0 var(--brand); }
+  .handle { cursor: grab; color: var(--muted); font-size: 24px; line-height: 1; padding: 4px 6px; user-select: none; letter-spacing: -4px; }
+  .handle:hover { color: var(--brand); }
+  .handle:active { cursor: grabbing; }
+  .order { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; flex: none;
+           font-size: .8rem; font-weight: 700; background: var(--brand); color: var(--brand-ink); }
+  .qitem.off .order { background: var(--line); color: var(--muted); }
+  .qitem input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--brand); flex: none; }
+  .qname { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; cursor: pointer; }
+  .qmeta { display: block; font-weight: 400; font-size: .78rem; color: var(--muted); }
+  .icon-btn { border: 1px solid transparent; background: none; border-radius: 8px; width: 30px; height: 30px; color: var(--muted); font-size: 14px; }
+  .icon-btn:hover { background: var(--soft); border-color: var(--line); color: var(--ink); }
+  .icon-btn:disabled { opacity: .25; cursor: default; background: none; border-color: transparent; }
+  .adder { display: flex; gap: 8px; }
+  .adder input { flex: 1; }
+  input[type=text], input[type=number], select { width: 100%; background: var(--soft); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  select { appearance: auto; cursor: pointer; }
+  .filebox { margin-bottom: 16px; }
+  .newname { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+  .newname .suffix { color: var(--muted); font-weight: 600; }
+  .newname .where { color: var(--muted); font-size: .85rem; white-space: nowrap; }
+  input:focus-visible { outline: 3px solid color-mix(in srgb, var(--brand) 35%, transparent); border-color: var(--brand); }
+  .help { color: var(--muted); font-size: .82rem; margin-top: 6px; }
+  .empty { color: var(--muted); padding: 12px; text-align: center; border: 1px dashed var(--line); border-radius: 10px; }
+
+  /* amounts */
+  label.field { display: block; font-weight: 600; margin-bottom: 6px; }
+  .chips { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .chip { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 3px 12px; font-size: .85rem; }
+  .chip:hover, .chip.on { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
+  .switch { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--line); cursor: pointer; }
+  .switch input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--brand); flex: none; }
+  .switch b { display: block; } .switch span { color: var(--muted); font-size: .85rem; }
+  details.adv { border-top: 1px solid var(--line); padding-top: 10px; }
+  details.adv summary { cursor: pointer; font-weight: 600; color: var(--muted); }
+  details.adv .inner { padding-top: 10px; display: grid; gap: 12px; }
+
+  /* summary */
+  .plan { background: var(--brand-soft); border: 1px solid color-mix(in srgb, var(--brand) 30%, var(--line)); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }
+  .plan h3 { margin: 0 0 4px; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--brand); }
+  .plan p { margin: 0; }
+  .plan ol { margin: 6px 0 0 18px; padding: 0; }
+  .btn { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 10px 18px; font-weight: 600; }
+  .btn:hover { border-color: var(--brand); }
+  .btn.primary { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.big { width: 100%; padding: 14px 18px; font-size: 1.1rem; }
+  .btn.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+  .msg { min-height: 1.3em; margin-top: 8px; font-size: .9rem; color: var(--bad); }
+  .msg.info { color: var(--muted); }
+
+  /* live */
+  .live-head { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .live-head h2 { margin: 0; font-size: 1.2rem; flex: 1; }
+  .now { color: var(--muted); margin: 0 0 12px; min-height: 1.5em; overflow-wrap: anywhere; }
+  .bar { height: 12px; background: var(--line); border-radius: 999px; overflow: hidden; }
+  .bar > div { height: 100%; width: 0; background: var(--brand); border-radius: 999px; transition: width .5s; }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0; }
+  @media (max-width: 520px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+  .tile { background: var(--soft); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  .tile b { display: block; font-size: 1.6rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .tile span { color: var(--muted); font-size: .8rem; }
+  .qstate { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 6px; }
+  .qstate li { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; background: var(--soft); border: 1px solid var(--line); }
+  .qstate li.running { border-color: var(--brand); background: var(--brand-soft); font-weight: 600; }
+  .qstate li.done { color: var(--muted); }
+  .qstate .ico { width: 20px; text-align: center; flex: none; }
+  .qstate .txt { flex: 1; overflow-wrap: anywhere; }
+  details.log summary { cursor: pointer; font-weight: 600; color: var(--muted); padding: 4px 0 8px; }
+  pre#log { margin: 0; background: var(--console); color: var(--console-ink); border-radius: 10px; padding: 12px; height: 260px; overflow: auto;
+            font: .78rem/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+
+  /* alerts */
+  .alert { border-radius: 14px; padding: 16px 20px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .alert h3 { margin: 0 0 2px; font-size: 1.05rem; }
+  .alert p { margin: 0; }
+  .alert .grow { min-width: 240px; }
+  .alert.captcha { border: 2px solid var(--warn); background: var(--warn-soft); }
+  .alert.done { border: 1px solid var(--ok); background: var(--ok-soft); }
+  .alert.fail { border: 1px solid var(--bad); background: var(--bad-soft); }
+  .alert .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .keywarn { border: 1px solid var(--warn); background: var(--warn-soft); border-radius: 12px; padding: 10px 14px; }
+
+  /* history */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: -6px 0 14px; }
+  .tab { background: none; border: none; border-bottom: 3px solid transparent; padding: 10px 14px; font-weight: 600; color: var(--muted); }
+  .tab[aria-selected=true] { color: var(--brand); border-bottom-color: var(--brand); }
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+  td.wrap { white-space: normal; min-width: 200px; font-weight: 600; }
+  .n { text-align: right; font-variant-numeric: tabular-nums; }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .78rem; font-weight: 600; background: var(--soft); color: var(--muted); border: 1px solid var(--line); }
+  .pill.running { background: var(--brand-soft); color: var(--brand); border-color: transparent; }
+  .pill.completed, .pill.done { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+  .pill.failed, .pill.interrupted { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
+  .pill.stopped, .pill.queued { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+  .dl { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+  a.btn { text-decoration: none; color: var(--ink); display: inline-block; }
+  .rowbtn { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 4px 10px; font-size: .82rem; }
+  .rowbtn:hover { border-color: var(--brand); color: var(--brand); }
+</style>
+</head>
+<body>
+
+<header class="top"><div class="top-in">
+  <div class="logo">AD</div>
+  <div>
+    <h1>AI Detriots Lead Pipeline</h1>
+    <div class="sub">Find local businesses, then find the owner's email</div>
+  </div>
+  <span class="grow"></span>
+  <span id="statusPill" class="status"><span class="dot"></span><span id="statusText">Ready</span></span>
+</div></header>
+
+<main>
+  <div id="keyWarn" class="keywarn" hidden>
+    <b>ContactOut key missing.</b> Add <code>CONTACTOUT_API_KEY</code> to the <code>.env</code> file, otherwise owner emails cannot be looked up.
+  </div>
+
+  <!-- CAPTCHA -->
+  <section id="captchaBanner" class="alert captcha" hidden>
+    <div class="grow">
+      <h3>Google or Bing is asking you to prove you're human</h3>
+      <p>Look at the browser window the pipeline opened, solve the puzzle there, then tell the pipeline what to do.</p>
+    </div>
+    <div class="acts">
+      <button class="btn primary" onclick="captcha('c')">I solved it &mdash; continue</button>
+      <button class="btn" onclick="captcha('s')">Skip this search</button>
+      <button class="btn" onclick="captcha('b')">Skip this business</button>
+      <button class="btn danger" onclick="captcha('q')">Save &amp; quit</button>
+    </div>
+  </section>
+
+  <!-- finished -->
+  <section id="doneBanner" class="alert done" hidden>
+    <div class="grow"><h3 id="doneTitle"></h3><p id="doneText"></p></div>
+    <div class="acts">
+      <a class="btn" id="doneDl" href="#" hidden>Download results (CSV)</a>
+      <button class="btn" onclick="$('doneBanner').hidden = true">Dismiss</button>
+    </div>
+  </section>
+
+  <div class="layout">
+    <!-- SET UP -->
+    <div class="stack steps" id="setup">
+      <section class="card step" id="stepMode">
+        <div class="step-head"><div class="num"></div>
+          <div><h2>What do you want to do?</h2><p>Pick one.</p></div></div>
+        <div class="modes" id="modes">
+          <label class="mode"><input type="radio" name="mode" value="all" checked><i class="tick">&#10003;</i>
+            <b>Find &amp; enrich</b><span>Collect new businesses from Google Maps, then look up each owner's email.</span></label>
+          <label class="mode"><input type="radio" name="mode" value="maps"><i class="tick">&#10003;</i>
+            <b>Collect businesses only</b><span>Only gather businesses from Google Maps. Look up emails later.</span></label>
+          <label class="mode"><input type="radio" name="mode" value="enrich"><i class="tick">&#10003;</i>
+            <b>Look up emails only</b><span id="enrichDesc">Find owners and emails for businesses you already collected.</span></label>
+          <label class="mode"><input type="radio" name="mode" value="retry"><i class="tick">&#10003;</i>
+            <b>Retry the misses</b><span>Enrich waiting businesses, then try again where no email was found.</span></label>
+        </div>
+      </section>
+
+      <section class="card step" id="stepTerms">
+        <div class="step-head"><div class="num"></div>
+          <div><h2>What should we search for?</h2><p>They run from top to bottom. Drag to reorder.</p></div></div>
+        <div class="qtools">
+          <button class="link" onclick="selectAll(true)">Select all</button>
+          <button class="link" onclick="selectAll(false)">Clear</button>
+          <span id="selCount"></span>
+        </div>
+        <ul class="queue" id="termList"></ul>
+        <div class="adder">
+          <input type="text" id="newTerm" placeholder='Add a search, e.g. "plumber in Texas"'>
+          <button class="btn" onclick="addTerm()">Add</button>
+        </div>
+        <div class="help">New searches are remembered for next time. Untick one to skip it. Use &#9650; &#9660; if dragging is awkward.</div>
+      </section>
+
+      <section class="card step" id="stepAmount">
+        <div class="step-head"><div class="num"></div>
+          <div><h2 id="amountTitle">How many?</h2><p id="amountSub"></p></div></div>
+        <div id="totalWrap">
+          <label class="field" for="total">New businesses to collect for each search</label>
+          <input type="number" id="total" min="1" value="3">
+          <div class="chips" id="chips"></div>
+        </div>
+        <label class="switch" style="margin-top:14px">
+          <input type="checkbox" id="visible" checked>
+          <div><b>Show the browser window</b><span>Keep this on. You need to see it to solve CAPTCHA puzzles.</span></div>
+        </label>
+        <details class="adv" id="advanced">
+          <summary>Advanced options</summary>
+          <div class="inner">
+            <div id="limitWrap">
+              <label class="field" for="limit">Maximum businesses to enrich</label>
+              <input type="number" id="limit" min="1" placeholder="Automatic">
+              <div class="help">Leave blank and it is worked out for you.</div>
+            </div>
+            <label class="switch" style="border:none;padding:0" id="forceWrap">
+              <input type="checkbox" id="force">
+              <div><b>Ignore saved results</b><span>Looks everything up again and uses ContactOut credits again. Normally leave this off.</span></div>
+            </label>
+          </div>
+        </details>
+      </section>
+
+      <section class="card step" id="stepFiles">
+        <div class="step-head"><div class="num"></div>
+          <div><h2 id="filesTitle">Where should the results be saved?</h2><p id="filesSub">Pick an existing file to add to, or create a new one.</p></div></div>
+        <div class="filebox" id="mapsBox">
+          <label class="field" id="mapsLabel" for="mapsSelect">Businesses file</label>
+          <select id="mapsSelect"></select>
+          <div class="newname" id="mapsNew" hidden>
+            <span class="where">outputs /</span><input type="text" id="mapsName" maxlength="80" aria-label="New businesses file name"><span class="suffix">.csv</span>
+          </div>
+          <div class="help" id="mapsHelp"></div>
+        </div>
+        <div class="filebox" id="enrBox">
+          <label class="field" for="enrSelect">Leads file (owners &amp; emails)</label>
+          <select id="enrSelect"></select>
+          <div class="newname" id="enrNew" hidden>
+            <span class="where">outputs /</span><input type="text" id="enrName" maxlength="80" aria-label="New leads file name"><span class="suffix">.csv</span>
+          </div>
+          <div class="help" id="enrHelp"></div>
+        </div>
+        <div class="help">Businesses you already collected are skipped everywhere, so a new file only receives businesses you have not collected before.</div>
+      </section>
+
+      <section class="card">
+        <div class="plan"><h3>What will happen</h3><div id="planText"></div></div>
+        <button class="btn primary big" id="startBtn" onclick="startRun()">Start</button>
+        <div class="msg" id="error"></div>
+      </section>
+    </div>
+
+    <!-- LIVE -->
+    <aside class="card sticky">
+      <div class="live-head">
+        <h2 id="liveTitle">Ready when you are</h2>
+        <button class="btn danger" id="stopBtn" onclick="stopRun()" hidden>Stop</button>
+      </div>
+      <p class="now" id="liveNow">Choose what to run on the left, then press Start.</p>
+      <div class="bar"><div id="barFill"></div></div>
+      <div class="tiles">
+        <div class="tile"><b id="sScraped">0</b><span>businesses collected</span></div>
+        <div class="tile"><b id="sEnriched">0</b><span>owners looked up</span></div>
+        <div class="tile"><b id="sEmail">0</b><span>emails found</span></div>
+        <div class="tile"><b id="sTime">0:00</b><span>time elapsed</span></div>
+      </div>
+      <ul class="qstate" id="qstate" hidden></ul>
+      <details class="log" id="logBox">
+        <summary>Show technical log</summary>
+        <pre id="log">Nothing yet.</pre>
+      </details>
+    </aside>
+  </div>
+
+  <!-- HISTORY -->
+  <section class="card">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tabTerms" aria-selected="true" onclick="showTab('terms')">Search history</button>
+      <button class="tab" role="tab" id="tabRuns" aria-selected="false" onclick="showTab('runs')">Past runs</button>
+      <button class="tab" role="tab" id="tabFiles" aria-selected="false" onclick="showTab('files')">My files</button>
+    </div>
+
+    <div id="paneTerms">
+      <div class="help" style="margin:0 0 10px">Every search you have ever run, with how many businesses it produced.</div>
+      <div class="tablewrap"><table>
+        <thead><tr>
+          <th>Search</th><th class="n">Businesses</th><th class="n">Looked up</th><th class="n">Waiting</th>
+          <th class="n">Emails found</th><th class="n">Runs</th><th>Last run</th><th>Status</th><th></th>
+        </tr></thead>
+        <tbody id="termRows"></tbody>
+      </table></div>
+      <div id="termEmpty" class="empty" hidden>No searches yet. Add one above and press Start.</div>
+    </div>
+
+    <div id="paneRuns" hidden>
+      <div class="tablewrap"><table>
+        <thead><tr>
+          <th>Started</th><th>What</th><th>Searches</th><th class="n">New businesses</th>
+          <th class="n">Looked up</th><th class="n">Emails</th><th>Saved to</th><th>Took</th><th>Result</th>
+        </tr></thead>
+        <tbody id="runRows"></tbody>
+      </table></div>
+      <div id="runEmpty" class="empty" hidden>No runs yet.</div>
+    </div>
+
+    <div id="paneFiles" hidden>
+      <div class="help" style="margin:0 0 10px">Your lead files. Download any of them as CSV to open in Excel or Google Sheets.</div>
+      <div class="tablewrap"><table>
+        <thead><tr>
+          <th>File</th><th>Contains</th><th class="n">Rows</th><th class="n">Waiting</th><th>Last changed</th><th></th>
+        </tr></thead>
+        <tbody id="fileRows"></tbody>
+      </table></div>
+      <div id="fileEmpty" class="empty" hidden>No files yet. They appear after your first run.</div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const MODE_LABEL = { all: "Find & enrich", maps: "Collect only", enrich: "Emails only", retry: "Retry misses" };
+const STATUS_LABEL = { idle: "Ready", running: "Running", completed: "Finished", failed: "Failed", stopped: "Stopped", interrupted: "Interrupted" };
+
+let cfg = { saved_terms: [], pending_rows: 0 };
+let termStats = {};            // lower-case term -> stats row from /api/terms
+let selected = new Set();
+let logNext = 0, running = false, lastStatus = "idle", beeped = false, lastRunInfo = null;
+let dragFrom = null;
+let files = { list: [], defaults: {}, suggested: {} };
+let mapsChoice = "", enrChoice = "";     // a file path, or NEW
+const NEW = "__new__";
+const filesOf = (kind) => files.list.filter((f) => f.kind === kind);
+const fileInfo = (path) => files.list.find((f) => f.path === path);
+const pendingRows = () => { const f = fileInfo(mapsChoice); return f ? f.pending : 0; };
+
+const key =(t) => t.replace(/\s+/g, " ").trim().toLowerCase();
+const mode = () => document.querySelector("input[name=mode]:checked").value;
+const usesMaps = () => mode() === "all" || mode() === "maps";
+const usesEnrich = () => mode() !== "maps";
+const orderedSelected = () => cfg.saved_terms.filter((t) => selected.has(t));
+const fmtTime = (s) => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+const fmtDate = (iso) => iso ? iso.replace("T", " ").slice(0, 16) : "—";
+const plural = (n, one, many) => n + " " + (n === 1 ? one : many);
+
+function el(tag, text, cls) {
+  const node = document.createElement(tag);
+  if (text !== undefined && text !== null) node.textContent = text;
+  if (cls) node.className = cls;
+  return node;
+}
+
+async function api(path, body) {
+  const options = body === undefined ? {} :
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const res = await fetch(path, options);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+/* ---------- search term queue (drag & drop) ---------- */
+async function saveOrder(newList) {
+  cfg.saved_terms = (await api("/api/saved-terms", { terms: newList })).saved_terms;
+  renderTerms(); updateForm();
+}
+
+function moveTerm(from, to) {
+  if (from === to || from < 0 || to < 0 || to >= cfg.saved_terms.length) return;
+  const list = cfg.saved_terms.slice();
+  const [item] = list.splice(from, 1);
+  list.splice(to, 0, item);
+  cfg.saved_terms = list;     // instant feedback
+  renderTerms(); updateForm();
+  saveOrder(list);
+}
+
+function renderTerms() {
+  const list = $("termList");
+  list.replaceChildren();
+  if (!cfg.saved_terms.length) {
+    list.append(el("li", "No searches yet. Type one below and press Add.", "empty"));
+  }
+  let position = 0;
+  cfg.saved_terms.forEach((term, index) => {
+    const on = selected.has(term);
+    if (on) position += 1;
+    const li = el("li", undefined, "qitem" + (on ? "" : " off"));
+    li.draggable = true;
+
+    li.addEventListener("dragstart", (e) => {
+      dragFrom = index; li.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", term);
+    });
+    li.addEventListener("dragend", () => { dragFrom = null; clearDropMarks(); li.classList.remove("dragging"); });
+    li.addEventListener("dragover", (e) => {
+      if (dragFrom === null) return;
+      e.preventDefault(); e.dataTransfer.dropEffect = "move";
+      const r = li.getBoundingClientRect(); const after = e.clientY > r.top + r.height / 2;
+      clearDropMarks(); li.classList.add(after ? "drop-after" : "drop-before");
+    });
+    li.addEventListener("drop", (e) => {
+      if (dragFrom === null) return;
+      e.preventDefault();
+      const r = li.getBoundingClientRect(); const after = e.clientY > r.top + r.height / 2;
+      let to = after ? index + 1 : index;
+      if (dragFrom < to) to -= 1;
+      const from = dragFrom; dragFrom = null; clearDropMarks();
+      moveTerm(from, to);
+    });
+
+    const handle = el("span", "⋮⋮", "handle"); handle.title = "Drag to reorder";
+    const badge = el("span", on ? String(position) : "–", "order");
+    badge.title = on ? "Runs number " + position : "Not selected";
+    const box = document.createElement("input"); box.type = "checkbox"; box.checked = on; box.id = "t" + index;
+    box.onchange = () => { box.checked ? selected.add(term) : selected.delete(term); renderTerms(); updateForm(); };
+    const name = el("label", undefined, "qname"); name.htmlFor = box.id;
+    name.append(document.createTextNode(term));
+    const st = termStats[key(term)];
+    name.append(el("span", st && st.scraped ? plural(st.scraped, "business", "businesses") + " so far" : "Not run yet", "qmeta"));
+
+    const up = el("button", "▲", "icon-btn"); up.title = "Move up"; up.disabled = index === 0;
+    up.onclick = () => moveTerm(index, index - 1);
+    const down = el("button", "▼", "icon-btn"); down.title = "Move down"; down.disabled = index === cfg.saved_terms.length - 1;
+    down.onclick = () => moveTerm(index, index + 1);
+    const del = el("button", "✕", "icon-btn"); del.title = "Remove from my list (history is kept)";
+    del.onclick = () => { selected.delete(term); saveOrder(cfg.saved_terms.filter((t) => t !== term)); };
+
+    li.append(handle, badge, box, name, up, down, del);
+    list.append(li);
+  });
+  $("selCount").textContent = cfg.saved_terms.length ? `${selected.size} of ${cfg.saved_terms.length} selected` : "";
+}
+function clearDropMarks() {
+  document.querySelectorAll(".drop-before,.drop-after").forEach((n) => n.classList.remove("drop-before", "drop-after"));
+}
+function selectAll(on) {
+  selected = on ? new Set(cfg.saved_terms) : new Set();
+  renderTerms(); updateForm();
+}
+async function addTerm(text) {
+  const input = $("newTerm");
+  const value = (text !== undefined ? text : input.value).replace(/\s+/g, " ").trim();
+  if (!value) return;
+  const existing = cfg.saved_terms.find((t) => key(t) === key(value));
+  if (!existing) {
+    cfg.saved_terms = (await api("/api/saved-terms", { terms: [...cfg.saved_terms, value] })).saved_terms;
+  }
+  selected.add(existing || value);
+  input.value = "";
+  renderTerms(); updateForm();
+}
+$("newTerm").addEventListener("keydown", (e) => { if (e.key === "Enter") addTerm(); });
+
+/* ---------- form logic ---------- */
+function updateForm() {
+  const m = mode();
+  $("stepTerms").hidden = !usesMaps();
+  $("totalWrap").hidden = !usesMaps();
+  $("limitWrap").hidden = !usesEnrich();
+  $("forceWrap").hidden = !usesEnrich();
+  $("advanced").hidden = !usesEnrich();
+  $("amountTitle").textContent = usesMaps() ? "How many?" : "Ready to go";
+  $("amountSub").textContent = usesMaps() ? "" : "Nothing to count — this uses businesses you already collected.";
+  const waitingAll = filesOf("maps").reduce((n, f) => n + f.pending, 0);
+  $("enrichDesc").textContent = `Find owners and emails for businesses already collected (${waitingAll} waiting).`;
+  renderFileBoxes();
+
+  const total = parseInt($("total").value || "0", 10);
+  document.querySelectorAll("#chips .chip").forEach((c) => c.classList.toggle("on", Number(c.dataset.v) === total));
+
+  const terms = orderedSelected();
+  const plan = $("planText"); plan.replaceChildren();
+  let problem = "";
+
+  if (usesMaps()) {
+    if (!terms.length) problem = "Tick at least one search above.";
+    else if (total < 1) problem = "Enter how many businesses to collect.";
+    const line = el("p");
+    line.append(document.createTextNode(
+      `Collect up to ${plural(terms.length * Math.max(total, 0), "new business", "new businesses")} ` +
+      `(${total || 0} for each of ${plural(terms.length, "search", "searches")}), in this order:`));
+    plan.append(line);
+    const ol = document.createElement("ol");
+    terms.forEach((t) => ol.append(el("li", t)));
+    plan.append(ol);
+    if (m === "all") plan.append(el("p", "Then look up the owner and email for each new business.", "help"));
+  } else {
+    const waiting = pendingRows();
+    if (!filesOf("maps").length) problem = "There is no businesses file yet. Collect some businesses first.";
+    else if (waiting < 1) problem = "No businesses in the chosen file are waiting to be looked up.";
+    plan.append(el("p", m === "retry"
+      ? `Look up ${plural(waiting, "waiting business", "waiting businesses")}, then retry the ones where no email was found.`
+      : `Look up owners and emails for ${plural(waiting, "waiting business", "waiting businesses")}, oldest first.`));
+  }
+
+  const fileLabel = (choice, name) => choice === NEW ? `outputs/${(name || "…").replace(/\.csv$/i, "")}.csv (new file)` : choice;
+  const saves = el("p", undefined, "help");
+  saves.append(document.createTextNode(usesMaps()
+    ? `Saved to: businesses → ${fileLabel(mapsChoice, $("mapsName").value)}` + (usesEnrich() ? `, leads → ${fileLabel(enrChoice, $("enrName").value)}` : "")
+    : `Reads businesses from ${fileLabel(mapsChoice)}; saves leads to ${fileLabel(enrChoice, $("enrName").value)}.`));
+  plan.append(saves);
+
+  if (!problem && mapsChoice === NEW && !$("mapsName").value.trim()) problem = "Give the new businesses file a name.";
+  if (!problem && usesEnrich() && enrChoice === NEW && !$("enrName").value.trim()) problem = "Give the new leads file a name.";
+
+  const btn = $("startBtn");
+  btn.disabled = running || !!problem;
+  btn.textContent = running ? "A run is in progress…" : "Start";
+  if (Date.now() > startErrorUntil) {
+    $("error").className = "msg info";
+    $("error").textContent = running ? "" : problem;
+  }
+}
+
+/* ---------- file choice ---------- */
+let lastFileSig = "";
+function fillSelect(select, kind, choice, allowNew) {
+  select.replaceChildren();
+  filesOf(kind).forEach((f) => {
+    const o = document.createElement("option"); o.value = f.path;
+    o.textContent = kind === "maps"
+      ? `${f.name} — ${plural(f.rows, "business", "businesses")}${f.pending ? `, ${f.pending} waiting` : ""}`
+      : `${f.name} — ${plural(f.rows, "lead", "leads")}`;
+    select.append(o);
+  });
+  if (allowNew) {
+    const o = document.createElement("option"); o.value = NEW; o.textContent = "+ Create a new file…"; select.append(o);
+  }
+  if ([...select.options].some((o) => o.value === choice)) select.value = choice;
+  return select.value;
+}
+
+function renderFileBoxes() {
+  const mapsIsSource = !usesMaps();
+  $("mapsLabel").textContent = mapsIsSource ? "Read businesses from" : "Save businesses to";
+  $("filesTitle").textContent = mapsIsSource ? "Which files should be used?" : "Where should the results be saved?";
+  $("enrBox").hidden = !usesEnrich();
+
+  // Rebuild the dropdowns only when something changed, otherwise the 1-3s
+  // status refresh would close a dropdown the user has open.
+  const sig = JSON.stringify([files.list.map((f) => [f.path, f.rows, f.pending]), mapsIsSource, usesEnrich(), mapsChoice, enrChoice]);
+  if (sig !== lastFileSig) {
+    mapsChoice = fillSelect($("mapsSelect"), "maps", mapsChoice, !mapsIsSource);
+    if (!mapsChoice && !mapsIsSource) mapsChoice = NEW;
+    if (usesEnrich()) enrChoice = fillSelect($("enrSelect"), "enriched", enrChoice, true) || NEW;
+    if (!filesOf("enriched").length) { enrChoice = NEW; $("enrSelect").value = NEW; }
+    if (!filesOf("maps").length && !mapsIsSource) { mapsChoice = NEW; $("mapsSelect").value = NEW; }
+    lastFileSig = JSON.stringify([files.list.map((f) => [f.path, f.rows, f.pending]), mapsIsSource, usesEnrich(), mapsChoice, enrChoice]);
+  }
+
+  $("mapsNew").hidden = mapsChoice !== NEW;
+  $("enrNew").hidden = enrChoice !== NEW;
+  $("mapsHelp").textContent = mapsChoice === NEW
+    ? "A new file is created in the outputs folder."
+    : mapsIsSource ? "Businesses waiting to be looked up are taken from this file."
+    : "New businesses are added to the end of this file. Existing rows are kept.";
+  $("enrHelp").textContent = enrChoice === NEW
+    ? "A new file is created in the outputs folder."
+    : "Owners and emails are added to this file. Existing rows are kept.";
+}
+
+function fileSpec(choice, nameInput) {
+  return choice === NEW ? { mode: "new", name: nameInput.value.trim() } : { mode: "existing", path: choice };
+}
+$("mapsSelect").addEventListener("change", (e) => { mapsChoice = e.target.value; updateForm(); });
+$("enrSelect").addEventListener("change", (e) => { enrChoice = e.target.value; updateForm(); });
+$("mapsName").addEventListener("input", updateForm);
+$("enrName").addEventListener("input", updateForm);
+
+let startErrorUntil = 0;
+async function startRun() {
+  const err = $("error"); startErrorUntil = 0; err.className = "msg"; err.textContent = "";
+  try {
+    await api("/api/run", {
+      mode: mode(),
+      terms: orderedSelected(),
+      total: parseInt($("total").value || "0", 10),
+      limit: parseInt($("limit").value || "0", 10),
+      headless: !$("visible").checked,
+      force_refresh: $("force").checked,
+      maps_file: fileSpec(mapsChoice, $("mapsName")),
+      enriched_file: usesEnrich() ? fileSpec(enrChoice, $("enrName")) : null,
+    });
+    logNext = 0; $("log").textContent = ""; beeped = false;
+    $("doneBanner").hidden = true;
+    poll();
+  } catch (e) { startErrorUntil = Date.now() + 8000; err.className = "msg"; err.textContent = e.message; }
+}
+async function stopRun() {
+  if (confirm("Stop the run now? Everything already collected stays saved.")) await api("/api/stop", {});
+}
+async function captcha(action) { await api("/api/captcha", { action }); poll(); }
+
+/* ---------- live panel ---------- */
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator(); osc.frequency.value = 880; osc.connect(ctx.destination);
+    osc.start(); setTimeout(() => { osc.stop(); ctx.close(); }, 450);
+  } catch (e) {}
+}
+
+function renderQueueState(s) {
+  const box = $("qstate");
+  const terms = (s.run && s.run.terms) || [];
+  const show = running && terms.length > 0 && (s.run.mode === "all" || s.run.mode === "maps");
+  box.hidden = !show;
+  if (!show) return;
+  box.replaceChildren();
+  terms.forEach((t) => {
+    const state = (s.term_states || {})[key(t)] || "queued";
+    const li = el("li", undefined, state);
+    li.append(el("span", state === "done" ? "✓" : state === "running" ? "●" : "○", "ico"), el("span", t, "txt"),
+              el("span", state === "running" ? "collecting…" : state === "done" ? "done" : "waiting", "pill " + state));
+    box.append(li);
+  });
+}
+
+function progressPct(s) {
+  if (!running || !s.run) return 0;
+  const r = s.run;
+  const mapsTarget = (r.terms || []).length * (r.total_per_term || 0);
+  const mapsFrac = r.mode === "enrich" || r.mode === "retry" ? 1
+    : s.phase === "Enriching leads" ? 1
+    : mapsTarget ? Math.min(1, s.live.scraped / mapsTarget) : 0;
+  const enrichFrac = s.limit ? Math.min(1, s.processed / s.limit) : 0;
+  if (r.mode === "maps") return Math.max(4, Math.round(100 * mapsFrac));
+  if (r.mode === "all") return Math.max(4, Math.round(50 * mapsFrac + 50 * enrichFrac));
+  return Math.max(4, Math.round(100 * enrichFrac));
+}
+
+async function poll() {
+  let s;
+  try { s = await api("/api/state?since=" + logNext); } catch (e) { return schedule(); }
+
+  const log = $("log");
+  if (s.lines.length) {
+    const stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 40;
+    if (log.textContent === "Nothing yet.") log.textContent = "";
+    log.append(document.createTextNode(s.lines.join("\n") + "\n"));
+    while (log.textContent.length > 300000) log.textContent = log.textContent.slice(100000);
+    if (stick) log.scrollTop = log.scrollHeight;
+  }
+  logNext = s.next;
+  running = s.running;
+
+  $("statusPill").className = "status " + s.status;
+  $("statusText").textContent = STATUS_LABEL[s.status] || s.status;
+  $("setup").classList.toggle("locked", running);
+  $("stopBtn").hidden = !running;
+
+  $("sScraped").textContent = s.live.scraped;
+  $("sEnriched").textContent = s.live.enriched;
+  $("sEmail").textContent = s.live.with_email;
+  $("sTime").textContent = fmtTime(s.elapsed);
+  $("barFill").style.width = progressPct(s) + "%";
+
+  if (running) {
+    $("liveTitle").textContent = s.phase || "Starting…";
+    $("liveNow").textContent = s.current ? "Working on: " + s.current : "Opening the browser…";
+  } else if (s.status === "idle") {
+    $("liveTitle").textContent = "Ready when you are";
+    $("liveNow").textContent = "Choose what to run on the left, then press Start.";
+  } else {
+    $("liveTitle").textContent = "Last run: " + (STATUS_LABEL[s.status] || s.status).toLowerCase();
+    $("liveNow").textContent = "Numbers above are from the run that just ended.";
+  }
+  renderQueueState(s);
+
+  $("captchaBanner").hidden = !s.captcha;
+  document.title = s.captcha ? "⚠ Action needed – AI Detriots" : "AI Detriots Lead Pipeline";
+  if (s.captcha && !beeped) { beep(); beeped = true; }
+  if (!s.captcha) beeped = false;
+
+  if (lastStatus === "running" && !running) { onRunEnded(s); }
+  lastStatus = s.status;
+  updateForm();
+  schedule();
+}
+let timer;
+function schedule() { clearTimeout(timer); timer = setTimeout(poll, running ? 1200 : 3000); }
+
+async function onRunEnded(s) {
+  await Promise.all([loadTerms(), loadRuns(), loadConfig(false), loadFiles(false)]);
+  const r = lastRunInfo;
+  // A file created by this run now exists: select it and offer a fresh name next time.
+  if (r && r.maps_file && mapsChoice === NEW && fileInfo(r.maps_file)) mapsChoice = r.maps_file;
+  if (r && r.enriched_file && enrChoice === NEW && fileInfo(r.enriched_file)) enrChoice = r.enriched_file;
+  $("mapsName").value = files.suggested.maps || ""; $("enrName").value = files.suggested.enriched || "";
+  const dl = r && (r.enriched_file || r.maps_file);
+  $("doneDl").hidden = !dl;
+  if (dl) $("doneDl").href = "/download?path=" + encodeURIComponent(dl);
+  updateForm();
+  const banner = $("doneBanner");
+  const t = (r && r.totals) || { scraped: 0, enriched: 0, with_email: 0 };
+  const summary = `${plural(t.scraped, "new business", "new businesses")} collected · ` +
+                  `${t.enriched} looked up · ${plural(t.with_email, "email", "emails")} found`;
+  banner.className = "alert " + (s.status === "completed" ? "done" : s.status === "failed" ? "fail" : "done");
+  $("doneTitle").textContent = s.status === "completed" ? "Run finished"
+    : s.status === "stopped" ? "Run stopped — your progress was saved" : "Run ended with a problem";
+  $("doneText").textContent = summary + (s.status === "failed" ? ". Open the technical log to see what went wrong." : "");
+  banner.hidden = false;
+  if (s.status === "failed") $("logBox").open = true;
+}
+
+/* ---------- history ---------- */
+function showTab(name) {
+  $("paneTerms").hidden = name !== "terms"; $("paneRuns").hidden = name !== "runs"; $("paneFiles").hidden = name !== "files";
+  $("tabTerms").setAttribute("aria-selected", name === "terms");
+  $("tabRuns").setAttribute("aria-selected", name === "runs");
+  $("tabFiles").setAttribute("aria-selected", name === "files");
+}
+
+async function loadFiles(initial) {
+  const data = await api("/api/files");
+  files = { list: data.files, defaults: data.defaults, suggested: data.suggested };
+  if (initial) {
+    mapsChoice = data.defaults.maps || NEW;
+    enrChoice = data.defaults.enriched || NEW;
+    $("mapsName").value = data.suggested.maps; $("enrName").value = data.suggested.enriched;
+  }
+  const body = $("fileRows"); body.replaceChildren();
+  $("fileEmpty").hidden = files.list.length > 0;
+  files.list.forEach((f) => {
+    const tr = document.createElement("tr");
+    tr.append(el("td", f.path, "wrap"), el("td", f.kind === "maps" ? "Businesses (Google Maps)" : "Leads (owners & emails)"),
+              el("td", f.rows, "n"), el("td", f.kind === "maps" ? f.pending : "—", "n"), el("td", fmtDate(f.modified)));
+    const dl = el("td"); const a = el("a", "Download", "rowbtn");
+    a.href = "/download?path=" + encodeURIComponent(f.path); a.style.textDecoration = "none"; a.style.color = "inherit";
+    dl.append(a); tr.append(dl); body.append(tr);
+  });
+  updateForm();
+}
+
+async function loadTerms() {
+  const { terms } = await api("/api/terms");
+  termStats = {};
+  terms.forEach((t) => { termStats[key(t.term)] = t; });
+  const body = $("termRows"); body.replaceChildren();
+  $("termEmpty").hidden = terms.length > 0;
+  terms.forEach((t) => {
+    const tr = document.createElement("tr");
+    const waiting = Math.max(t.scraped - t.enriched, 0);
+    tr.append(el("td", t.term, "wrap"), el("td", t.scraped, "n"), el("td", t.enriched, "n"), el("td", waiting, "n"),
+              el("td", t.with_email, "n"), el("td", t.runs, "n"), el("td", fmtDate(t.last_run)));
+    const state = t.run_state || t.last_status || (t.scraped ? "imported" : "new");
+    const label = { running: "collecting…", queued: "waiting", done: "done" }[t.run_state] || state;
+    const st = el("td"); st.append(el("span", label, "pill " + (t.run_state || t.last_status || "")));
+    const act = el("td");
+    const use = el("button", "Run this", "rowbtn");
+    use.title = "Select only this search and go to the top";
+    use.disabled = running;
+    use.onclick = async () => {
+      await addTerm(t.term);
+      selected = new Set([cfg.saved_terms.find((x) => key(x) === key(t.term)) || t.term]);
+      document.querySelector("input[name=mode][value=all]").checked = true;
+      renderTerms(); updateForm(); window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    act.append(use);
+    tr.append(st, act);
+    body.append(tr);
+  });
+  renderTerms();
+}
+
+async function loadRuns() {
+  const { runs } = await api("/api/runs");
+  lastRunInfo = runs[0] || null;
+  const body = $("runRows"); body.replaceChildren();
+  $("runEmpty").hidden = runs.length > 0;
+  runs.forEach((r) => {
+    const tr = document.createElement("tr");
+    const t = r.totals || { scraped: 0, enriched: 0, with_email: 0 };
+    let took = "—";
+    if (r.started && r.ended) took = fmtTime(Math.max(0, Math.round((new Date(r.ended) - new Date(r.started)) / 1000)));
+    tr.append(el("td", fmtDate(r.started)), el("td", MODE_LABEL[r.mode] || r.mode),
+              el("td", (r.terms || []).join(", ") || "all waiting businesses", "wrap"),
+              el("td", t.scraped, "n"), el("td", t.enriched, "n"), el("td", t.with_email, "n"),
+              el("td", [r.maps_file, r.enriched_file].filter(Boolean).join(" · ") || "—", "wrap"), el("td", took));
+    const st = el("td"); st.append(el("span", STATUS_LABEL[r.status] || r.status, "pill " + r.status)); tr.append(st);
+    body.append(tr);
+  });
+}
+
+async function loadConfig(initial) {
+  cfg = await api("/api/config");
+  if (initial) {
+    selected = new Set(cfg.saved_terms);
+    $("total").value = cfg.default_total || 3;
+    $("keyWarn").hidden = cfg.contactout_configured;
+    const chips = $("chips");
+    [3, 10, 25, 50, 100].forEach((v) => {
+      const c = el("button", String(v), "chip"); c.type = "button"; c.dataset.v = v;
+      c.onclick = () => { $("total").value = v; updateForm(); };
+      chips.append(c);
+    });
+  }
+  renderTerms(); updateForm();
+}
+
+document.querySelectorAll("input[name=mode]").forEach((i) => i.addEventListener("change", updateForm));
+$("total").addEventListener("input", updateForm);
+
+(async () => {
+  await Promise.all([loadConfig(true), loadFiles(true)]);
+  await Promise.all([loadTerms(), loadRuns()]);
+  poll();
+  setInterval(() => { if (running) loadTerms(); }, 5000);
+})();
+</script>
+</body>
+</html>
