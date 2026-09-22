@@ -43,7 +43,7 @@ playwright install chromium
 python app.py
 ```
 
-On Windows you can also double-click **`RUN_PIPELINE.bat`**. The dashboard opens in your default browser at <http://127.0.0.1:5077/>. Keep the console window open while you work; closing it stops the dashboard and any run in progress.
+On Windows you can also double-click **`RUN_PIPELINE.bat`**. The dashboard opens in your default browser at <http://127.0.0.1:5000/>. Keep the console window open while you work; closing it stops the dashboard and any run in progress.
 
 ## Using the dashboard
 
